@@ -311,6 +311,81 @@ const updateUserCoverImage = asyncHandeler(async (req, res) => {
     .json(new ApiResponse(200, user, "coverImage Updateed Successfully"));
 });
 
+// Channel profile And subcriber and subcribed This is called Aggregation Pipeline
+
+// An aggregation pipeline consists of one or more stages that process documents:
+// Each stage performs an operation on the input documents. For example, a stage can filter documents, group documents, and calculate values.The documents that are output from a stage are passed to the next stage.An aggregation pipeline can return results for groups of documents. For example, return the total, average, maximum, and minimum values.
+const getUserChannelProfile = asyncHandeler(async (req, res) => {
+  const { username } = req.params;
+  //  Checked that the username exiset or not
+  if (!username.trim()) {
+    throw new ApiError(401, "username is missing");
+  }
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    // Amai koto jon  Subscribed kore rakha6a ta dakhar method
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    // Ami koto jon k Subscribed kore rakha6i ta dakhanor method
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    // Ai 2 to ke Jog korar jonno addfiled pipline er method
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers",
+        },
+        channelsSubscribedToCount: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelsSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
+
+  if (!channel?.length) {
+    throw ApiError(400, "Channel does not Exists!");
+  }
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, channel[0], "User channel fetched successfully")
+    );
+});
 export {
   registerUser,
   loginUser,
@@ -321,4 +396,5 @@ export {
   updateAccountDetails,
   updateUserAvatar,
   updateUserCoverImage,
+  getUserChannelProfile,
 };
