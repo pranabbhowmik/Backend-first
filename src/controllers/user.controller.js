@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { uploadCloudinaryImage } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 // generate access and refresh token
 const generateAccessAndRefreshToken = async (userId) => {
@@ -386,6 +387,61 @@ const getUserChannelProfile = asyncHandeler(async (req, res) => {
       new ApiResponse(200, channel[0], "User channel fetched successfully")
     );
 });
+
+//User Watch History method
+const getWatchHistory = asyncHandeler(async (req, res) => {
+  const user = await User.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistory",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              pipeline: [
+                {
+                  // those thinks you want to show in the watch history Like Fullname,avatar,thumbel,views,
+                  $project: {
+                    fullName: 1,
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $addFields: {
+              $first: "$owner",
+            },
+          },
+        ],
+      },
+    },
+  ]);
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        user[0].watchHistory,
+        "Watch history fetched successfully"
+      )
+    );
+});
+
+// Export Everything
 export {
   registerUser,
   loginUser,
@@ -397,4 +453,5 @@ export {
   updateUserAvatar,
   updateUserCoverImage,
   getUserChannelProfile,
+  getWatchHistory,
 };
